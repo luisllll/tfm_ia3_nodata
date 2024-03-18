@@ -143,3 +143,5 @@ log_model.txt
 tokenization.py
 
 data/
+
+models/
