@@ -15,18 +15,18 @@ from abc import ABCMeta, abstractmethod
 
 class FomcBase(metaclass=ABCMeta):
     '''
-    A base class for extracting documents from the FOMC website
+    Una clase base para extraer documentos del sitio web del FOMC
     '''
 
     def __init__(self, content_type, verbose, max_threads, base_dir):
         
-        # Set arguments to internal variables
+        # Asignar los argumentos a variables internas
         self.content_type = content_type
         self.verbose = verbose
         self.MAX_THREADS = max_threads
         self.base_dir = base_dir
 
-        # Initialization
+        # Inicialización de variables
         self.df = None
         self.links = None
         self.dates = None
@@ -34,11 +34,11 @@ class FomcBase(metaclass=ABCMeta):
         self.speakers = None
         self.titles = None
 
-        # FOMC website URLs
+        # URLs del sitio web del FOMC
         self.base_url = 'https://www.federalreserve.gov'
         self.calendar_url = self.base_url + '/monetarypolicy/fomccalendars.htm'
 
-        # FOMC Chairperson's list
+        # Lista de presidentes del FOMC
         self.chair = pd.DataFrame(
             data=[["Greenspan", "Alan", "1987-08-11", "2006-01-31"], 
                   ["Bernanke", "Ben", "2006-02-01", "2014-01-31"], 
@@ -47,6 +47,7 @@ class FomcBase(metaclass=ABCMeta):
             columns=["Surname", "FirstName", "FromDate", "ToDate"])
         
     def _date_from_link(self, link):
+        # Extraer la fecha del enlace usando una expresión regular
         date = re.findall('[0-9]{8}', link)[0]
         if date[4] == '0':
             date = "{}-{}-{}".format(date[:4], date[5:6], date[6:])
@@ -55,6 +56,7 @@ class FomcBase(metaclass=ABCMeta):
         return date
 
     def _speaker_from_date(self, article_date):
+        # Determinar el orador basado en la fecha del artículo
         if self.chair.FromDate[0] < article_date and article_date < self.chair.ToDate[0]:
             speaker = self.chair.FirstName[0] + " " + self.chair.Surname[0]
         elif self.chair.FromDate[1] < article_date and article_date < self.chair.ToDate[1]:
@@ -64,48 +66,47 @@ class FomcBase(metaclass=ABCMeta):
         elif self.chair.FromDate[3] < article_date and article_date < self.chair.ToDate[3]:
             speaker = self.chair.FirstName[3] + " " + self.chair.Surname[3]
         else:
-            speaker = "other"
+            speaker = "otro"
         return speaker
         
     @abstractmethod
     def _get_links(self, from_year):
         '''
-        private function that sets all the links for the FOMC meetings
-         from the giving from_year to the current most recent year
-         from_year is min(2015, from_year)
+        Función privada que establece todos los enlaces para las reuniones del FOMC
+        desde el año `from_year` hasta el año más reciente.
+        `from_year` es min(2015, from_year)
         '''
-        # Implement in sub classes
+        # Implementar en las subclases
         pass
     
     @abstractmethod
     def _add_article(self, link, index=None):
         '''
-        adds the related article for 1 link into the instance variable
-        index is the index in the article to add to. Due to concurrent
-        prcessing, we need to make sure the articles are stored in the
-        right order
+        Agrega el artículo relacionado a un enlace en la variable de instancia.
+        `index` es el índice en el artículo a agregar. Debido al procesamiento concurrente,
+        necesitamos asegurarnos de que los artículos se almacenen en el orden correcto.
         '''
-        # Implement in sub classes
+        # Implementar en las subclases
         pass
 
     def _get_articles_multi_threaded(self):
         '''
-        gets all articles using multi-threading
+        Obtiene todos los artículos utilizando multi-threading
         '''
         if self.verbose:
-            print("Getting articles - Multi-threaded...")
+            print("Obteniendo artículos - Multi-threaded...")
 
         self.articles = ['']*len(self.links)
         jobs = []
-        # initiate and start threads:
+        # Iniciar y empezar threads:
         index = 0
         while index < len(self.links):
             if len(jobs) < self.MAX_THREADS:
-                t = threading.Thread(target=self._add_article, args=(self.links[index],index,))
+                t = threading.Thread(target=self._add_article, args=(self.links[index], index,))
                 jobs.append(t)
                 t.start()
                 index += 1
-            else:    # wait for threads to complete and join them back into the main thread
+            else:    # Esperar a que los threads completen y unirlos de vuelta al main thread
                 t = jobs.pop(0)
                 t.join()
         for t in jobs:
@@ -116,8 +117,8 @@ class FomcBase(metaclass=ABCMeta):
 
     def get_contents(self, from_year=1990):
         '''
-        Returns a Pandas DataFrame with the date as the index for a date range of from_year to the most current.
-        Save the same to internal df as well.
+        Retorna un DataFrame de Pandas con la fecha como índice para un rango de fechas desde `from_year` hasta la más reciente.
+        También guarda el mismo en la variable interna `df`.
         '''
         self._get_links(from_year)
         self._get_articles_multi_threaded()
@@ -133,18 +134,18 @@ class FomcBase(metaclass=ABCMeta):
 
     def pickle_dump_df(self, filename="output.pickle"):
         '''
-        Dump an internal DataFrame df to a pickle file
+        Guarda el DataFrame interno `df` en un archivo pickle
         '''
         filepath = self.base_dir + filename
         print("")
-        if self.verbose: print("Writing to ", filepath)
+        if self.verbose: print("Escribiendo a ", filepath)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "wb") as output_file:
             pickle.dump(self.df, output_file)
 
     def save_texts(self, prefix="FOMC_", target="contents"):
         '''
-        Save an internal DataFrame df to text files
+        Guarda el DataFrame interno `df` en archivos de texto
         '''
         tmp_dates = []
         tmp_seq = 1
@@ -157,7 +158,7 @@ class FomcBase(metaclass=ABCMeta):
                 tmp_seq = 1
                 filepath = self.base_dir + prefix + cur_date + ".txt"
             tmp_dates.append(cur_date)
-            if self.verbose: print("Writing to ", filepath)
+            if self.verbose: print("Escribiendo a ", filepath)
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as output_file:
                 output_file.write(row[target])

@@ -12,22 +12,22 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 def dump_df(df, filename="output"):
-        '''
-        Dump an internal DataFrame df to a pickle file and csv
-        '''
-        filepath = filename + '.pickle'
-        print("")
-        print("Writing to ", filepath)
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, "wb") as output_file:
-            pickle.dump(df, output_file)
-        filepath = filename + '.csv'
-        print("Writing to ", filepath)
-        df.to_csv(filepath, index=False)
+    '''
+    Guarda un DataFrame interno df en un archivo pickle y csv
+    '''
+    filepath = filename + '.pickle'
+    print("")
+    print("Escribiendo en ", filepath)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "wb") as output_file:
+        pickle.dump(df, output_file)
+    filepath = filename + '.csv'
+    print("Escribiendo en ", filepath)
+    df.to_csv(filepath, index=False)
 
 def is_integer(n):
     '''
-    Check if an input string can be converted to integer
+    Verifica si una cadena de entrada se puede convertir a entero
     '''
     try:
         float(n)
@@ -38,11 +38,11 @@ def is_integer(n):
 
 if __name__ == '__main__':
     '''
-    This program get all calendar date of the past and announced FOMC meetings.
-    The first argument is optional to specify from which year to get the date.
-    It creates a dataframe and saves a pickle file and csv file.
+    Este programa obtiene todas las fechas del calendario de reuniones pasadas y anunciadas del FOMC.
+    El primer argumento es opcional para especificar desde qué año obtener las fechas.
+    Crea un DataFrame y guarda un archivo pickle y un archivo csv.
     '''
-    # FOMC website URLs
+    # URLs del sitio web del FOMC
     base_url = 'https://www.federalreserve.gov'
     calendar_url = base_url + '/monetarypolicy/fomccalendars.htm'
 
@@ -50,30 +50,30 @@ if __name__ == '__main__':
     pg_name = sys.argv[0]
 
     if len(sys.argv) != 2:
-        print("Usage: ", pg_name)
-        print("Please specify the first argument between 1936 and 2015")
+        print("Uso: ", pg_name)
+        print("Por favor, especifique el primer argumento entre 1936 y 2015")
         sys.exit(1)    
         
     from_year = sys.argv[1]
 
-    # Handles the first argument, from_year
+    # Maneja el primer argumento, from_year
     if from_year:
         if is_integer(from_year):
             from_year = int(from_year)
         else:
-            print("Usage: ", pg_name)
-            print("Please specify the first argument between 1936 and 2015")
+            print("Uso: ", pg_name)
+            print("Por favor, especifique el primer argumento entre 1936 y 2015")
             sys.exit(1)
         
-        if (from_year < 1936) or (from_year>2015):
-            print("Usage: ", pg_name)
-            print("Please specify the first argument between 1936 and 2015")
+        if (from_year < 1936) or (from_year > 2015):
+            print("Uso: ", pg_name)
+            print("Por favor, especifique el primer argumento entre 1936 y 2015")
             sys.exit(1)
     else:
         from_year = 1936
-        print("From year is set as 1936. Please specify the year as the first argument if required.")
+        print("El año desde es 1936. Por favor, especifique el año como el primer argumento si es necesario.")
 
-    # Retrieve FOMC Meeting date from current page - from 2015 to 2020
+    # Obtener fechas de reunión del FOMC desde la página actual - de 2015 a 2020
     r = requests.get(calendar_url)
     soup = BeautifulSoup(r.text, 'html.parser')
     panel_divs = soup.find_all('div', {"class": "panel panel-default"})
@@ -82,7 +82,7 @@ if __name__ == '__main__':
         m_year = panel_div.find('h4').get_text()[:4]
         m_months = panel_div.find_all('div', {"class": "fomc-meeting__month"})
         m_dates = panel_div.find_all('div', {"class": "fomc-meeting__date"})
-        print("YEAR: {} - {} meetings found.".format(m_year, len(m_dates)))
+        print("AÑO: {} - {} reuniones encontradas.".format(m_year, len(m_dates)))
 
         for (m_month, m_date) in zip(m_months, m_dates):
             month_name = m_month.get_text().strip()
@@ -91,12 +91,12 @@ if __name__ == '__main__':
             is_unscheduled = False
             is_month_short = False
 
-            if ("cancelled" in date_text):
+            if ("cancelada" in date_text):
                 continue
-            elif "notation vote" in date_text:
-                date_text = date_text.replace("(notation vote)", "").strip()
-            elif "unscheduled" in date_text:
-                date_text = date_text.replace("(unscheduled)", "").strip()
+            elif "voto de anotación" in date_text:
+                date_text = date_text.replace("(voto de anotación)", "").strip()
+            elif "no programada" in date_text:
+                date_text = date_text.replace("(no programada)", "").strip()
                 is_unscheduled = True
             
             if "*" in date_text:
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
             date_list.append({"date": meeting_date, "unscheduled": is_unscheduled, "forecast": is_forecast, "confcall": False})
 
-    # Retrieve FOMC Meeting date older than 2015
+    # Obtener fechas de reunión del FOMC anteriores a 2015
     for year in range(from_year, 2015):
         hist_url = base_url + '/monetarypolicy/fomchistorical' + str(year) + '.htm'
         r = requests.get(hist_url)
@@ -127,33 +127,33 @@ if __name__ == '__main__':
             panel_headings = soup.find_all('h5', {"class": "panel-heading"})
         else:
             panel_headings = soup.find_all('div', {"class": "panel-heading"})
-        print("YEAR: {} - {} meetings found.".format(year, len(panel_headings)))
+        print("AÑO: {} - {} reuniones encontradas.".format(year, len(panel_headings)))
         for panel_heading in panel_headings:
             date_text = panel_heading.get_text().strip()
-            #print("Date: ", date_text)
-            regex = r"(January|February|March|April|May|June|July|August|September|October|November|December).*\s(\d*-)*(\d+)\s+(Meeting|Conference Calls?|\(unscheduled\))\s-\s(\d+)"
+            #print("Fecha: ", date_text)
+            regex = r"(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre).*\s(\d*-)*(\d+)\s+(Reunión|Conferencias? telefónicas?|\(no programada\))\s-\s(\d+)"
             date_text_ext = re.findall(regex, date_text)[0]
             meeting_date_str = date_text_ext[4] + "-" + date_text_ext[0] + "-" + date_text_ext[2]
-            #print("   Extracted:", meeting_date_str)
-            if meeting_date_str == '1992-June-1':
-                meeting_date_str = '1992-July-1'
-            elif meeting_date_str == '1995-January-1':
-                meeting_date_str = '1995-February-1'
-            elif meeting_date_str == '1998-June-1':
-                meeting_date_str = '1998-July-1'
-            elif meeting_date_str == '2012-July-1':
-                meeting_date_str = '2012-August-1'
-            elif meeting_date_str == '2013-April-1':
-                meeting_date_str = '2013-May-1'
+            #print("   Extraído:", meeting_date_str)
+            if meeting_date_str == '1992-Junio-1':
+                meeting_date_str = '1992-Julio-1'
+            elif meeting_date_str == '1995-Enero-1':
+                meeting_date_str = '1995-Febrero-1'
+            elif meeting_date_str == '1998-Junio-1':
+                meeting_date_str = '1998-Julio-1'
+            elif meeting_date_str == '2012-Julio-1':
+                meeting_date_str = '2012-Agosto-1'
+            elif meeting_date_str == '2013-Abril-1':
+                meeting_date_str = '2013-Mayo-1'
 
             meeting_date = datetime.strptime(meeting_date_str, '%Y-%B-%d')
-            is_confcall = "Conference Call" in date_text_ext[3]
-            is_unscheduled = "unscheduled" in date_text_ext[3]
+            is_confcall = "Conferencia telefónica" in date_text_ext[3]
+            is_unscheduled = "no programada" in date_text_ext[3]
             date_list.append({"date": meeting_date, "unscheduled": is_unscheduled, "forecast": False, "confcall": is_confcall})
 
     df = pd.DataFrame(date_list).sort_values(by=['date'])
     df.reset_index(drop=True, inplace=True)
     print(df)
 
-    # Save
+    # Guardar
     dump_df(df, "../data/FOMC/fomc_calendar")

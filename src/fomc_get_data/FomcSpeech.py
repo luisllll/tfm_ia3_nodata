@@ -11,24 +11,24 @@ from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
 
-# Import parent class
+# Importa la clase base
 from .FomcBase import FomcBase
 
 class FomcSpeech(FomcBase):
     '''
-    A convenient class for extracting speech from the FOMC website
-    Example Usage:  
+    Una clase conveniente para extraer discursos del sitio web del FOMC
+    Ejemplo de uso:  
         fomc = FomcSpeech()
         df = fomc.get_contents()
     '''
-    def __init__(self, verbose = True, max_threads = 10, base_dir = '../data/FOMC/'):
+    def __init__(self, verbose=True, max_threads=10, base_dir='../data/FOMC/'):
         super().__init__('speech', verbose, max_threads, base_dir)
         self.speech_base_url = self.base_url + '/newsevents/speech'
 
     def _get_links(self, from_year):
         '''
-        Override private function that sets all the links for the contents to download on FOMC website
-         from from_year (=min(2015, from_year)) to the current most recent year
+        Sobrescribe la función privada que establece todos los enlaces para los contenidos a descargar en el sitio web del FOMC
+        desde from_year (=min(2015, from_year)) hasta el año más reciente
         '''
         self.links = []
         self.titles = []
@@ -38,14 +38,14 @@ class FomcSpeech(FomcBase):
         res = requests.get(self.calendar_url)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        if self.verbose: print("Getting links for speeches...")
+        if self.verbose: print("Obteniendo enlaces para discursos...")
         to_year = datetime.today().strftime("%Y")
 
         if from_year <= 1995:
-            print("Archive only from 1996, so setting from_year as 1996...")
+            print("Archivo solo desde 1996, estableciendo from_year como 1996...")
             from_year = 1996
         for year in range(from_year, int(to_year)+1):
-            # Archived between 1996 and 2005, URL changed from 2011
+            # Archivos entre 1996 y 2005, la URL cambió desde 2011
             if year < 2011:
                 speech_url = self.speech_base_url + '/' + str(year) + 'speech.htm'
             else:
@@ -55,39 +55,39 @@ class FomcSpeech(FomcBase):
             soup = BeautifulSoup(res.text, 'html.parser')
             speech_links = soup.findAll('a', href=re.compile('^/?newsevents/speech/.*{}\d\d\d\d.*.htm|^/boarddocs/speeches/{}/|^{}\d\d\d\d.*.htm'.format(str(year), str(year), str(year))))
             for speech_link in speech_links:
-                # Sometimes the same link is put for watch live video. Skip those.
+                # A veces se pone el mismo enlace para ver el video en vivo. Omitir esos.
                 if speech_link.find({'class': 'watchLive'}):
                     continue
 
-                # Add link, title and date
+                # Agregar enlace, título y fecha
                 self.links.append(speech_link.attrs['href'])
                 self.titles.append(speech_link.get_text())
                 self.dates.append(datetime.strptime(self._date_from_link(speech_link.attrs['href']), '%Y-%m-%d'))
 
-                # Add speaker
-                # Somehow the speaker is before the link in 1997 only, whereas the others is vice-versa
+                # Agregar orador
+                # De alguna manera, el orador está antes del enlace solo en 1997, mientras que en los otros es viceversa
                 if year == 1997:
-                    # Somehow only the linke for December 15 speech has speader after the link in 1997 page.
+                    # De alguna manera, solo el enlace para el discurso del 15 de diciembre tiene el orador después del enlace en la página de 1997.
                     if speech_link.get('href') == '/boarddocs/speeches/1997/19971215.htm':
                         tmp_speaker = speech_link.parent.next_sibling.next_element.get_text().replace('\n', '').strip()
                     else:
                         tmp_speaker = speech_link.parent.previous_sibling.previous_sibling.get_text().replace('\n', '').strip()
                 else:
-                    # Somehow 20051128 and 20051129 are structured differently
+                    # De alguna manera, 20051128 y 20051129 están estructurados de manera diferente
                     if speech_link.get('href') in ('/boarddocs/speeches/2005/20051128/default.htm', '/boarddocs/speeches/2005/20051129/default.htm'):
                         tmp_speaker = speech_link.parent.previous_sibling.previous_sibling.get_text().replace('\n', '').strip()
                     tmp_speaker = speech_link.parent.next_sibling.next_element.get_text().replace('\n', '').strip()
-                    # When a video icon is placed between the link and speaker
+                    # Cuando se coloca un ícono de video entre el enlace y el orador
                     if tmp_speaker in ('Watch Live', 'Video'):
                         tmp_speaker = speech_link.parent.next_sibling.next_sibling.next_sibling.next_element.get_text().replace('\n', '').strip()
                 self.speakers.append(tmp_speaker)
-            if self.verbose: print("YEAR: {} - {} speeches found.".format(year, len(speech_links)))
+            if self.verbose: print("AÑO: {} - {} discursos encontrados.".format(year, len(speech_links)))
 
     def _add_article(self, link, index=None):
         '''
-        Override a private function that adds a related article for 1 link into the instance variable
-        The index is the index in the article to add to. 
-        Due to concurrent prcessing, we need to make sure the articles are stored in the right order
+        Sobrescribe una función privada que agrega un artículo relacionado para 1 enlace en la variable de instancia
+        El índice es el índice en el artículo para agregar.
+        Debido al procesamiento concurrente, necesitamos asegurarnos de que los artículos se almacenen en el orden correcto
         '''
         if self.verbose:
             sys.stdout.write(".")
@@ -95,22 +95,22 @@ class FomcSpeech(FomcBase):
 
         res = requests.get(self.base_url + link)
         html = res.text
-        # p tag is not properly closed in many cases
+        # La etiqueta p no está correctamente cerrada en muchos casos
         html = html.replace('<P', '<p').replace('</P>', '</p>')
         html = html.replace('<p', '</p><p').replace('</p><p', '<p', 1)
-        # remove all after appendix or references
+        # eliminar todo después del apéndice o referencias
         x = re.search(r'(<b>references|<b>appendix|<strong>references|<strong>appendix)', html.lower())
         if x:
             html = html[:x.start()]
             html += '</body></html>'
-        # Parse html text by BeautifulSoup
+        # Analizar el texto HTML con BeautifulSoup
         article = BeautifulSoup(html, 'html.parser')
-        # Remove footnote
+        # Eliminar nota al pie
         for fn in article.find_all('a', {'name': re.compile('fn\d')}):
             if fn.parent:
                 fn.parent.decompose()
             else:
                 fn.decompose()
-        # Get all p tag
+        # Obtener todas las etiquetas p
         paragraphs = article.findAll('p')
         self.articles[index] = "\n\n[SECTION]\n\n".join([paragraph.get_text().strip() for paragraph in paragraphs])

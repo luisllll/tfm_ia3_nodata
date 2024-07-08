@@ -12,42 +12,42 @@ import json
 import numpy as np
 import pandas as pd
 
-# Import parent class
+# Importa la clase base
 from .FomcBase import FomcBase
 
 class FomcTestimony(FomcBase):
     '''
-    A convenient class for extracting testimony from the FOMC website.
-    Among testimonies, there are semi annual monetary policy report to the Congress by chairperson.
-    Example Usage:  
+    Una clase conveniente para extraer testimonios del sitio web del FOMC.
+    Entre los testimonios, se encuentran los informes semestrales de política monetaria al Congreso por el presidente.
+    Ejemplo de uso:  
         fomc = FomcTestimony()
         df = fomc.get_contents()
     '''
-    def __init__(self, verbose = True, max_threads = 10, base_dir = '../data/FOMC/'):
+    def __init__(self, verbose=True, max_threads=10, base_dir='../data/FOMC/'):
         super().__init__('testimony', verbose, max_threads, base_dir)
 
     def _get_links(self, from_year):
         '''
-        Override private function that sets all the links for the contents to download on FOMC website
-         from from_year (=min(1996, from_year)) to the current most recent year
+        Sobrescribe la función privada que establece todos los enlaces para los contenidos a descargar en el sitio web del FOMC
+        desde from_year (=min(1996, from_year)) hasta el año más reciente
         '''
         self.links = []
         self.titles = []
         self.speakers = []
         self.dates = []
 
-        if self.verbose: print("Getting links for testimony...")
+        if self.verbose: print("Obteniendo enlaces para testimonios...")
         to_year = datetime.today().strftime("%Y")
 
         if from_year < 1996:
-            print("Archive only from 1996, so setting from_year as 1996...")
+            print("El archivo solo está disponible desde 1996, así que se establece from_year como 1996...")
             from_year = 1996
         elif from_year > 2006:
-            print("All data from 2006 is in a single json, so return all from 2006 anyway though specified from year is ", from_year)
+            print("Todos los datos desde 2006 están en un solo json, así que se devuelven todos desde 2006 aunque se especifique el año ", from_year)
 
         url = self.base_url + '/json/ne-testimony.json'
         res = requests.get(url)
-        res.encoding = 'utf-8-sig'  # Set the encoding to handle BOM
+        res.encoding = 'utf-8-sig'  # Establecer la codificación para manejar BOM
         res_list = json.loads(res.text)
         for record in res_list:
             doc_link = record.get('l')
@@ -67,13 +67,13 @@ class FomcTestimony(FomcBase):
 
                 doc_links = soup.findAll('a', href=re.compile('^/boarddocs/testimony/{}/|^/boarddocs/hh/{}/'.format(str(year), str(year))))
                 for doc_link in doc_links:
-                    # Sometimes the same link is put for watch live video. Skip those.
+                    # A veces se pone el mismo enlace para ver el video en vivo. Saltar esos.
                     if doc_link.find({'class': 'watchLive'}):
                         continue
-                    # Add links
+                    # Agregar enlaces
                     self.links.append(doc_link.attrs['href'])
 
-                    # Handle mark-up mistakes
+                    # Manejar errores de marcado
                     if doc_link.get('href') in ('/boarddocs/testimony/2005/20050420/default.htm'):
                         title = doc_link.get_text()
                         speaker = doc_link.parent.parent.next_element.next_element.get_text().replace('\n', '').strip()
@@ -85,7 +85,7 @@ class FomcTestimony(FomcBase):
                     else:
                         title = doc_link.get_text()
                         speaker = doc_link.parent.find_next('div').get_text().replace('\n', '').strip()
-                        # When a video icon is placed between the link and speaker
+                        # Cuando se coloca un ícono de video entre el enlace y el orador
                         if speaker in ('Watch Live', 'Video'):
                             speaker = doc_link.parent.find_next('p').find_next('p').get_text().replace('\n', '').strip()
                         date_str = doc_link.parent.parent.next_element.replace('\n', '').strip()
@@ -94,44 +94,35 @@ class FomcTestimony(FomcBase):
                     self.speakers.append(speaker)
                     self.dates.append(datetime.strptime(date_str, '%B %d, %Y'))
                     
-                if self.verbose: print("YEAR: {} - {} testimony docs found.".format(year, len(doc_links)))
+                if self.verbose: print("AÑO: {} - {} documentos de testimonio encontrados.".format(year, len(doc_links)))
 
     def _add_article(self, link, index=None):
         '''
-        Override a private function that adds a related article for 1 link into the instance variable
-        The index is the index in the article to add to. 
-        Due to concurrent prcessing, we need to make sure the articles are stored in the right order
+        Sobrescribe una función privada que agrega un artículo relacionado para 1 enlace en la variable de instancia
+        El índice es el índice en el artículo para agregar.
+        Debido al procesamiento concurrente, necesitamos asegurarnos de que los artículos se almacenen en el orden correcto
         '''
         if self.verbose:
             sys.stdout.write(".")
             sys.stdout.flush()
 
         link_url = self.base_url + link
-        # article_date = self._date_from_link(link)
-
-        #print(link_url)
-
-        # date of the article content
-        # self.dates.append(article_date)
 
         res = requests.get(self.base_url + link)
         html = res.text
-        # p tag is not properly closed in many cases
+        # La etiqueta p no está cerrada correctamente en muchos casos
         html = html.replace('<P', '<p').replace('</P>', '</p>')
         html = html.replace('<p', '</p><p').replace('</p><p', '<p', 1)
-        # remove all after appendix or references
+        # Eliminar todo después de apéndice o referencias
         x = re.search(r'(<b>references|<b>appendix|<strong>references|<strong>appendix)', html.lower())
         if x:
             html = html[:x.start()]
             html += '</body></html>'
-        # Parse html text by BeautifulSoup
+        # Analizar el texto HTML con BeautifulSoup
         article = BeautifulSoup(html, 'html.parser')
-        # Remove footnote
+        # Eliminar nota al pie
         for fn in article.find_all('a', {'name': re.compile('fn\d')}):
-            # if fn.parent:
-            #     fn.parent.decompose()
-            # else:
             fn.decompose()
-        # Get all p tag
+        # Obtener todas las etiquetas p
         paragraphs = article.findAll('p')
         self.articles[index] = "\n\n[SECTION]\n\n".join([paragraph.get_text().strip() for paragraph in paragraphs])

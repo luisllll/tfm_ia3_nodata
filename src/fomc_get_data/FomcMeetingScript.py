@@ -11,22 +11,17 @@ from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
 
-# Tika depends on Java version, so use textract instead as the pdf is anyway a simple text only
-# # User TIKA for pdf parsing
-# os.environ['TIKA_SERVER_JAR'] = 'https://repo1.maven.org/maven2/org/apache/tika/tika-server/1.19/tika-server-1.19.jar'
-# import tika
-# from tika import parser
 import textract
 
-# Import parent class
+# Importa la clase base
 from .FomcBase import FomcBase
 
 class FomcMeetingScript(FomcBase):
     '''
-    A convenient class for extracting meeting scripts from the FOMC website.
-    FOMC publishes the meeting scripts after 5 years, so this cannot be used for the prediction of the monetary policy in real-time.
+    Una clase  para extraer guiones de reuniones del sitio web del FOMC.
+    El FOMC publica los guiones de las reuniones después de 5 años, por lo que esto no puede usarse para la predicción de la política monetaria en tiempo real.
 
-    Example Usage:  
+    Ejemplo de uso:  
         fomc = FomcMeetingScript()
         df = fomc.get_contents()
     '''
@@ -35,8 +30,8 @@ class FomcMeetingScript(FomcBase):
 
     def _get_links(self, from_year):
         '''
-        Override private function that sets all the links for the contents to download on FOMC website
-         from from_year (=min(2015, from_year)) to the current most recent year
+        Sobrescribe la función privada que establece todos los enlaces para los contenidos a descargar en el sitio web del FOMC
+        desde from_year (=min(2015, from_year)) hasta el año más reciente
         '''
         self.links = []
         self.titles = []
@@ -46,29 +41,30 @@ class FomcMeetingScript(FomcBase):
         r = requests.get(self.calendar_url)
         soup = BeautifulSoup(r.text, 'html.parser')
         
-        # Meeting Script can be found only in the archive as it is published after five years
+        # Los guiones de las reuniones solo se pueden encontrar en el archivo, ya que se publican después de cinco años
         if from_year > 2014:
-            print("Meeting scripts are available for 2014 or older")
+            print("Los guiones de las reuniones están disponibles para 2014 o años anteriores")
         if from_year <= 2014:
             for year in range(from_year, 2015):
                 yearly_contents = []
                 fomc_yearly_url = self.base_url + '/monetarypolicy/fomchistorical' + str(year) + '.htm'
                 r_year = requests.get(fomc_yearly_url)
                 soup_yearly = BeautifulSoup(r_year.text, 'html.parser')
+                # Busca enlaces a archivos PDF de guiones de reuniones
                 meeting_scripts = soup_yearly.find_all('a', href=re.compile('^/monetarypolicy/files/FOMC\d{8}meeting.pdf'))
                 for meeting_script in meeting_scripts:
                     self.links.append(meeting_script.attrs['href'])
                     self.speakers.append(self._speaker_from_date(self._date_from_link(meeting_script.attrs['href'])))
                     self.titles.append('FOMC Meeting Transcript')
                     self.dates.append(datetime.strptime(self._date_from_link(meeting_script.attrs['href']), '%Y-%m-%d'))
-                if self.verbose: print("YEAR: {} - {} meeting scripts found.".format(year, len(meeting_scripts)))
-            print("There are total ", len(self.links), ' links for ', self.content_type)
+                if self.verbose: print("AÑO: {} - {} guiones de reuniones encontrados.".format(year, len(meeting_scripts)))
+            print("Hay un total de ", len(self.links), ' enlaces para ', self.content_type)
 
     def _add_article(self, link, index=None):
         '''
-        Override a private function that adds a related article for 1 link into the instance variable
-        The index is the index in the article to add to. 
-        Due to concurrent processing, we need to make sure the articles are stored in the right order
+        Sobrescribe una función  que agrega un artículo relacionado para 1 enlace en la variable de instancia
+        El índice es el índice en el artículo para agregar.
+        Debido al procesamiento concurrente, necesitamos asegurarnos de que los artículos se almacenen en el orden correcto
         '''
         if self.verbose:
             sys.stdout.write(".")
@@ -77,14 +73,12 @@ class FomcMeetingScript(FomcBase):
         link_url = self.base_url + link
         pdf_filepath = self.base_dir + 'script_pdf/FOMC_MeetingScript_' + self._date_from_link(link) + '.pdf'
 
-        # Scripts are provided only in pdf. Save the pdf and pass the content
+        # Los guiones solo se proporcionan en formato PDF. Guarda el PDF y pasa el contenido
         res = requests.get(link_url)
         with open(pdf_filepath, 'wb') as f:
             f.write(res.content)
 
-        # Extract text from the pdf
-        # pdf_file_parsed = parser.from_file(pdf_filepath)
-        # paragraphs = re.sub('(\n)(\n)+', '\n', pdf_file_parsed['content'].strip())
+        # Extrae texto del PDF
         pdf_file_parsed = textract.process(pdf_filepath).decode('utf-8')
         paragraphs = re.sub('(\n)(\n)+', '\n', pdf_file_parsed.strip())
         paragraphs = paragraphs.split('\n')
@@ -92,7 +86,9 @@ class FomcMeetingScript(FomcBase):
         section = -1
         paragraph_sections = []
         for paragraph in paragraphs:
+            # Filtra los párrafos que no empiezan con fechas o palabras clave específicas
             if not re.search('^(page|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)', paragraph.lower()):
+                # Filtra los párrafos que no parecen ser encabezados de sección
                 if len(re.findall(r'[A-Z]', paragraph[:10])) > 5 and not re.search('(present|frb/us|abs cdo|libor|rp–ioer|lsaps|cusip|nairu|s cpi|clos, r)', paragraph[:10].lower()):
                     section += 1
                     paragraph_sections.append("")
